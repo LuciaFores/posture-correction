@@ -24,6 +24,9 @@ void loop() {
       else if (serialListener == 'G') {
         setColor(0, 255, 0);
       }
+      else if (serialListener == 'V') {
+        setColor(170, 0, 255);
+      }
       else if (serialListener == 'O') {
         setColor(0, 0, 0);
       }
