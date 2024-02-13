@@ -206,6 +206,12 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
     arduino = serial.Serial('/dev/ttyACM2', 9600)
     time.sleep(2)
     '''
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    fourcc = cv2.VideoWriter_fourcc('X','V','I','D')
+    video_writer = cv2.VideoWriter('output.avi', fourcc, fps, (w, h))
     if posture == "sit":
         good_frames = 0
         bad_frames = 0
@@ -218,9 +224,7 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
         return
     with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
         while cap.isOpened():
-            ret, frame = cap.read()
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            h, w = frame.shape[:2]
+            _, frame = cap.read()
             frame = process_frame(frame, "pre")
             results = pose.process(frame)
             frame = process_frame(frame, "post")
@@ -288,10 +292,12 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
                                     mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2) 
                                     )               
             cv2.imshow('Mediapipe Feed', frame)
+            video_writer.write(frame)
             if cv2.waitKey(10) & 0xFF == ord('q'):
                 #send_message(arduino, "O")
                 break
         cap.release()
+        video_writer.release()
         cv2.destroyAllWindows()
         #arduino.close()
     return
