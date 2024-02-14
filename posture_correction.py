@@ -109,19 +109,23 @@ def process_frame(frame, status):
         image = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
     return image
 
-def compute_time(frame, fps, neck_angle, torso_angle, good_frames, bad_frames, font, colors):
-    angle_text_string = 'Neck : ' + str(int(neck_angle)) + '  Torso : ' + str(int(torso_angle))
-    if neck_angle < 40 and torso_angle < 10:
+def compute_time(fps, neck_angle, torso_angle, good_frames, bad_frames):
+    sit_guide = ""
+    if neck_angle < 70 and torso_angle < 10:
         bad_frames = 0
         good_frames += 1
-        cv2.putText(frame, angle_text_string, (10, 30), font, 0.9, colors["light_green"], 2)
     else:
         good_frames = 0
         bad_frames += 1
-        cv2.putText(frame, angle_text_string, (10, 30), font, 0.9, colors["red"], 2)
+    
+    if neck_angle > 70:
+        sit_guide += "Increase the height of the neck\n"
+    if torso_angle > 10:
+        sit_guide += "Increase the height of the torso\n"
+    
     good_time = (1/fps) * good_frames
     bad_time = (1/fps) * bad_frames
-    return frame, good_frames, bad_frames, good_time, bad_time
+    return good_frames, bad_frames, good_time, bad_time, sit_guide
 
 def compute_squat(l_shoulder, r_shoulder, l_hip, r_hip, l_knee, r_knee, l_foot, r_foot):
     # condition 1
@@ -208,6 +212,7 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
 
     fourcc = cv2.VideoWriter_fourcc('X','V','I','D')
     video_writer = cv2.VideoWriter('output.avi', fourcc, fps, (w, h))
+    guide = ""
     if posture == "sit":
         good_frames = 0
         bad_frames = 0
@@ -232,19 +237,29 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
                     l_ear, l_shoulder, l_hip = extract_top_landmarks(landmarks, "left", mp_pose)
                     r_ear, r_shoulder, r_hip = extract_top_landmarks(landmarks, "right", mp_pose)
                     offset = find_distance(l_shoulder, r_shoulder, w, h)
+                    cv2.rectangle(frame, (w-150,0), (w,40), colors["black"], -1)
                     if offset < 100:
-                        cv2.putText(frame, str(int(offset)) + " Aligned", (w-150, 30), font, 0.9, colors["green"], 2)
+                        cv2.putText(frame, "Aligned", (w-145, 25), font, 0.7, colors["green"], 1, cv2.LINE_AA)
                         neck_angle = compute_sit_angles(r_shoulder, r_ear, w, h)
                         torso_angle = compute_sit_angles(r_hip, r_shoulder, w, h)
+                        # put on the frame the neck angle at the height of the right shoulder
+                        cv2.putText(frame, "Neck Angle: " + str(round(neck_angle, 2)),
+                                (int(r_shoulder[0] * w), int(r_shoulder[1] * h)), font, 0.5, colors["black"], 1, cv2.LINE_AA)
+                        # put on the frame the torso angle at the height of the right hip
+                        cv2.putText(frame, "Torso Angle: " + str(round(torso_angle, 2)),
+                                (int(r_hip[0] * w), int(r_hip[1] * h)), font, 0.5, colors["black"], 1, cv2.LINE_AA)
 
-                        frame, good_frames, bad_frames, good_time, bad_time = compute_time(frame, fps, neck_angle, torso_angle, good_frames, bad_frames, font, colors)                
+                        good_frames, bad_frames, good_time, bad_time, guide = compute_time(fps, neck_angle, torso_angle, good_frames, bad_frames)                
 
+                        cv2.rectangle(frame, (0,0), (400,73), colors["light_cyan"], -1)
                         if good_time > 0:
                             time_string_good = 'Good Posture Time : ' + str(round(good_time, 1)) + 's'
-                            cv2.putText(frame, time_string_good, (10, h - 20), font, 0.9, colors["green"], 2)
+                            cv2.putText(frame, time_string_good, (15,12), 
+                                font, 0.5, colors["black"], 1, cv2.LINE_AA)
                         else:
                             time_string_bad = 'Bad Posture Time : ' + str(round(bad_time, 1)) + 's'
-                            cv2.putText(frame, time_string_bad, (10, h - 20), font, 0.9, colors["red"], 2)
+                            cv2.putText(frame, time_string_bad, (15,12), 
+                                font, 0.5, colors["black"], 1, cv2.LINE_AA)
 
                         if good_time > 180:
                             #send_message(arduino, "G")
@@ -252,20 +267,36 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
                         if bad_time > 180:
                             #send_message(arduino, "R")
                             pass
+                        
                     else:
-                        cv2.putText(frame, str(int(offset)) + " Not Aligned", (w-150, 30), font, 0.9, colors["red"], 2)
+                        cv2.putText(frame, "Not Aligned", (w-145, 25), font, 0.7, colors["red"], 1, cv2.LINE_AA)
                         #send_message(arduino, "V")
                 else:
                     if posture == "squat":
                         l_knee, l_hip, l_shoulder, l_foot = extract_squat_landmarks(landmarks, "left", mp_pose)
                         r_knee, r_hip, r_shoulder, r_foot = extract_squat_landmarks(landmarks, "right", mp_pose)
                         hip_angle, l_knee_hip_height, r_knee_hip_height, l_foot_knee_width, r_foot_knee_width = compute_squat(l_shoulder, r_shoulder, l_hip, r_hip, l_knee, r_knee, l_foot, r_foot)
-                        is_exercise_performed, exercise_guide = isCorrectSquat(hip_angle, l_knee_hip_height, r_knee_hip_height, l_foot_knee_width, r_foot_knee_width)
+                        # put on the frame the hip angle at the height of the left hip
+                        cv2.putText(frame, "Hip Angle: " + str(round(hip_angle, 2)),
+                                (int(l_hip[0] * w), int(l_hip[1] * h)), font, 0.5, colors["black"], 1, cv2.LINE_AA)
+                        # put on the frame the knee-hip height at the height of the left knee
+                        cv2.putText(frame, "Knee-Hip Height: " + str(round(l_knee_hip_height, 2)),
+                                (int(l_knee[0] * w), int(l_knee[1] * h)), font, 0.5, colors["black"], 1, cv2.LINE_AA)
+                        # put on the frame the foot-knee width at the height of the left foot
+                        cv2.putText(frame, "Foot-Knee Width: " + str(round(l_foot_knee_width, 2)),
+                                (int(l_foot[0] * w), int(l_foot[1] * h)), font, 0.5, colors["black"], 1, cv2.LINE_AA)
+                        is_exercise_performed, guide = isCorrectSquat(hip_angle, l_knee_hip_height, r_knee_hip_height, l_foot_knee_width, r_foot_knee_width)
                     if posture == "pushup":
                         l_wrist, l_elbow, l_shoulder, l_ankle, l_hip = extract_push_up_landmarks(landmarks, "left", mp_pose)
                         r_wrist, r_elbow, r_shoulder, r_ankle, r_hip = extract_push_up_landmarks(landmarks, "right", mp_pose)
                         elbow_angle, body_angle = compute_push_up(l_shoulder, r_shoulder, l_elbow, r_elbow, l_wrist, r_wrist, l_hip, r_hip, l_ankle, r_ankle)
-                        is_exercise_performed, exercise_guide = isCorrectPushUp(elbow_angle, body_angle)
+                        # put on the frame the elbow angle at the height of the left elbow
+                        cv2.putText(frame, "Elbow Angle: " + str(round(elbow_angle, 2)),
+                                (int(l_elbow[0] * w), int(l_elbow[1] * h)), font, 0.5, colors["black"], 1, cv2.LINE_AA)
+                        # put on the frame the body angle at the height of the left ankle
+                        cv2.putText(frame, "Body Angle: " + str(round(body_angle, 2)),
+                                (int(l_ankle[0] * w), int(l_ankle[1] * h)), font, 0.5, colors["black"], 1, cv2.LINE_AA)
+                        is_exercise_performed, guide = isCorrectPushUp(elbow_angle, body_angle)
                         
                     if is_exercise_performed and not is_done:
                         is_done = True
@@ -287,25 +318,26 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
                         #send_message(arduino, "V")
                         pass
 
-                    cv2.rectangle(frame, (0,0), (400,73), (245,117,16), -1)
+                    cv2.rectangle(frame, (0,0), (400,73), colors["light_cyan"], -1)
                     # Rep data
                     cv2.putText(frame, 'REPETITIONS: '+str(int(good_repetitions % 10)), (15,12), 
-                                font, 0.5, (0,0,0), 1, cv2.LINE_AA)
-                    cv2.putText(frame, "GUIDE: ", 
-                                (15,36), 
-                                font, 0.5, (255,255,255), 1, cv2.LINE_AA)
-                    if exercise_guide != "":
-                        for i, guide in enumerate(exercise_guide.split('\n')):
-                            t = i+1
-                            cv2.putText(frame, guide, 
-                                (15,36 + t*12), 
-                                font, 0.5, (255,255,255), 1, cv2.LINE_AA)
+                                font, 0.5, colors["black"], 1, cv2.LINE_AA)
             except:
                 pass
+
+            if guide != "":
+                cv2.putText(frame, "GUIDE: ", 
+                                (15,36), 
+                                font, 0.5, colors["white"], 1, cv2.LINE_AA)
+                for i, guide_line in enumerate(guide.split('\n')):
+                    t = i+1
+                    cv2.putText(frame, guide_line, 
+                        (15,36 + t*12), 
+                        font, 0.5, colors["white"], 1, cv2.LINE_AA)
             # Render detections
             mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
-                                    mp_drawing.DrawingSpec(color=(245,117,66), thickness=2, circle_radius=2), 
-                                    mp_drawing.DrawingSpec(color=(245,66,230), thickness=2, circle_radius=2) 
+                                    mp_drawing.DrawingSpec(color=colors["pink"], thickness=2, circle_radius=2), 
+                                    mp_drawing.DrawingSpec(color=colors["blue"], thickness=2, circle_radius=2) 
                                     )               
             cv2.imshow('Mediapipe Feed', frame)
             video_writer.write(frame)
@@ -334,7 +366,9 @@ def main():
             "light_green": (127, 233, 100),
             "yellow": (0, 255, 255),
             "pink": (255, 0, 255),
-            "black": (0, 0, 0)
+            "black": (0, 0, 0),
+            "white": (255, 255, 255),
+            "light_cyan" : (245,117,16)
         }
 
         mp_drawing = mp.solutions.drawing_utils
