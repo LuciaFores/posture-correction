@@ -149,14 +149,12 @@ def compute_squat(l_shoulder, r_shoulder, l_hip, r_hip, l_knee, r_knee, l_foot, 
 
 def isCorrectSquat(hip_angle, l_knee_hip_height, r_knee_hip_height, l_foot_knee_width, r_foot_knee_width):
     squat_guide = ""
-    is_squat_performed = True
+    is_squat_performed = False
     are_conditions_met = (60 <= hip_angle <= 120 and l_knee_hip_height <= 0.2 and r_knee_hip_height <= 0.2 and l_foot_knee_width <= 0.1 and r_foot_knee_width <= 0.1)
 
     if are_conditions_met:
-        is_squat_performed = False
+        is_squat_performed = True
     else:
-        if is_squat_performed == False:
-            is_squat_performed = True
         # build guide given the wrong conditions
         if hip_angle < 60:
             squat_guide += "Increase the height of the hip\n"
@@ -183,13 +181,11 @@ def compute_push_up(l_shoulder, r_shoulder, l_elbow, r_elbow, l_wrist, r_wrist, 
 
 def isCorrectPushUp(elbow_angle, body_angle):
     push_up_guide = ""
-    is_push_up_performed = True
+    is_push_up_performed = False
 
     if 70 <= elbow_angle <= 100 and 160 <= body_angle <= 200:
-        is_push_up_performed = False
+        is_push_up_performed = True
     else:
-        if is_push_up_performed == False:
-            is_push_up_performed = True
         if elbow_angle < 70:
             push_up_guide += "Increase the height of the elbow\n"
         if elbow_angle > 100:
@@ -218,7 +214,9 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
         good_time = 0
         bad_time = 0
     elif posture == "squat" or posture == "pushup":
-        repetitions = 0
+        is_done = False
+        good_repetitions = 0
+        bad_repetitions = 0
     else:
         print("Invalid posture")
         return
@@ -248,10 +246,10 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
                             time_string_bad = 'Bad Posture Time : ' + str(round(bad_time, 1)) + 's'
                             cv2.putText(frame, time_string_bad, (10, h - 20), font, 0.9, colors["red"], 2)
 
-                        if good_time > 1:
+                        if good_time > 180:
                             #send_message(arduino, "G")
                             pass
-                        if bad_time > 1:
+                        if bad_time > 180:
                             #send_message(arduino, "R")
                             pass
                     else:
@@ -268,12 +266,30 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
                         r_wrist, r_elbow, r_shoulder, r_ankle, r_hip = extract_push_up_landmarks(landmarks, "right", mp_pose)
                         elbow_angle, body_angle = compute_push_up(l_shoulder, r_shoulder, l_elbow, r_elbow, l_wrist, r_wrist, l_hip, r_hip, l_ankle, r_ankle)
                         is_exercise_performed, exercise_guide = isCorrectPushUp(elbow_angle, body_angle)
+                        
+                    if is_exercise_performed and not is_done:
+                        is_done = True
+                    if is_exercise_performed and is_done:
+                        is_done = False
+                        bad_repetitions = 0
+                        good_repetitions += 1
                     if not is_exercise_performed:
-                        repetitions += 1
+                        good_repetitions = 0
+                        bad_repetitions += 1
+
+                    if int(good_repetitions % 10) > 3:
+                        #send_message(arduino, "G")
+                        pass
+                    elif int(bad_repetitions % 10) > 3:
+                        #send_message(arduino, "R")
+                        pass
+                    else:
+                        #send_message(arduino, "V")
+                        pass
 
                     cv2.rectangle(frame, (0,0), (400,73), (245,117,16), -1)
                     # Rep data
-                    cv2.putText(frame, 'REPETITIONS: '+str(repetitions), (15,12), 
+                    cv2.putText(frame, 'REPETITIONS: '+str(int(good_repetitions % 10)), (15,12), 
                                 font, 0.5, (0,0,0), 1, cv2.LINE_AA)
                     cv2.putText(frame, "GUIDE: ", 
                                 (15,36), 
