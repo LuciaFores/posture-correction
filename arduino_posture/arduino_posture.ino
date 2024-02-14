@@ -34,10 +34,15 @@ void loop() {
         lcd.clear();
         lcd.print("Ok!");
       }
-      else if (serialListener == 'V') {
-        setColor(170, 0, 255);
+      else if (serialListener == 'Y') {
+        setColor(255, 80, 0);
         lcd.clear();
         lcd.print("Not Aligned");
+      }
+      else if (serialListener == 'V') {
+        setColor(128, 0, 128);
+        lcd.clear();
+        lcd.print("Computing...");
       }
       else if (serialListener == 'O') {
         setColor(0, 0, 0);

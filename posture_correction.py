@@ -1,6 +1,7 @@
 import cv2
 import math
 import serial
+import serial.tools.list_ports as port_list
 import time
 import mediapipe as mp
 import numpy as np
@@ -55,6 +56,8 @@ def send_message(port, command):
         port.write(b'G') 
     elif command =="R":
         port.write(b'R')
+    elif command =="Y":
+        port.write(b'Y')
     elif command =="V":
         port.write(b'V')
     elif command =="O":
@@ -200,12 +203,12 @@ def isCorrectPushUp(elbow_angle, body_angle):
             push_up_guide += "Decrease the height of the body\n"
     return is_push_up_performed, push_up_guide
 
-def posture_correction(posture, mp_drawing, mp_pose, font, colors):
+def posture_correction(posture, mp_drawing, mp_pose, font, colors, port):
     cap = cv2.VideoCapture(0)
-    '''
-    arduino = serial.Serial('/dev/ttyACM2', 9600)
+    
+    arduino = serial.Serial(port, 9600)
     time.sleep(2)
-    '''
+    
     fps = cap.get(cv2.CAP_PROP_FPS)
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -261,16 +264,16 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
                             cv2.putText(frame, time_string_bad, (15,12), 
                                 font, 0.5, colors["black"], 1, cv2.LINE_AA)
 
-                        if good_time > 180:
-                            #send_message(arduino, "G")
-                            pass
-                        if bad_time > 180:
-                            #send_message(arduino, "R")
-                            pass
+                        if good_time > 10:
+                            send_message(arduino, "G")
+                        elif bad_time > 10:
+                            send_message(arduino, "R")
+                        else:
+                            send_message(arduino, "V")
                         
                     else:
                         cv2.putText(frame, "Not Aligned", (w-145, 25), font, 0.7, colors["red"], 1, cv2.LINE_AA)
-                        #send_message(arduino, "V")
+                        send_message(arduino, "Y")
                 else:
                     if posture == "squat":
                         l_knee, l_hip, l_shoulder, l_foot = extract_squat_landmarks(landmarks, "left", mp_pose)
@@ -309,14 +312,11 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
                         bad_repetitions += 1
 
                     if int(good_repetitions % 10) > 3:
-                        #send_message(arduino, "G")
-                        pass
+                        send_message(arduino, "G")
                     elif int(bad_repetitions % 10) > 3:
-                        #send_message(arduino, "R")
-                        pass
+                        send_message(arduino, "R")
                     else:
-                        #send_message(arduino, "V")
-                        pass
+                        send_message(arduino, "V")
 
                     cv2.rectangle(frame, (0,0), (400,73), colors["light_cyan"], -1)
                     # Rep data
@@ -342,12 +342,12 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors):
             cv2.imshow('Mediapipe Feed', frame)
             video_writer.write(frame)
             if cv2.waitKey(10) & 0xFF == ord('q'):
-                #send_message(arduino, "O")
+                send_message(arduino, "O")
                 break
         cap.release()
         video_writer.release()
         cv2.destroyAllWindows()
-        #arduino.close()
+        arduino.close()
     return
 
 
@@ -374,7 +374,10 @@ def main():
         mp_drawing = mp.solutions.drawing_utils
         mp_pose = mp.solutions.pose
 
-        posture_correction(posture, mp_drawing, mp_pose, font, colors)
+        port = list(port_list.comports())
+        port = str(port[0].device)
+
+        posture_correction(posture, mp_drawing, mp_pose, font, colors, port)
     else:
         print("Invalid arguments")
     return
