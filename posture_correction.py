@@ -156,14 +156,16 @@ def compute_squat(l_shoulder, r_shoulder, l_hip, r_hip, l_knee, r_knee, l_foot, 
 
 def isCorrectSquat(hip_angle, l_knee_hip_height, r_knee_hip_height, l_foot_knee_width, r_foot_knee_width):
     squat_guide = ""
-    is_squat_performed = False
+    is_squat_correct = False
     are_conditions_met = (60 <= hip_angle <= 120 and l_knee_hip_height <= 0.2 and r_knee_hip_height <= 0.2 and l_foot_knee_width <= 0.1 and r_foot_knee_width <= 0.1)
 
     if are_conditions_met:
-        is_squat_performed = True
+        is_squat_correct = True
+    elif hip_angle < 40:
+        is_squat_correct = None
     else:
         # build guide given the wrong conditions
-        if hip_angle < 60:
+        if 40 <= hip_angle < 60:
             squat_guide += "Increase the height of the hip\n"
         if hip_angle > 120:
             squat_guide += "Decrease the height of the hip\n"
@@ -172,7 +174,7 @@ def isCorrectSquat(hip_angle, l_knee_hip_height, r_knee_hip_height, l_foot_knee_
         if l_foot_knee_width > 0.1 or r_foot_knee_width > 0.1:
             squat_guide += "Do not exceed the tip of the toe with your knee\n"
     
-    return is_squat_performed, squat_guide
+    return is_squat_correct, squat_guide
 
 def compute_push_up(l_shoulder, r_shoulder, l_elbow, r_elbow, l_wrist, r_wrist, l_hip, r_hip, l_ankle, r_ankle):
     # Condition 1
@@ -188,20 +190,22 @@ def compute_push_up(l_shoulder, r_shoulder, l_elbow, r_elbow, l_wrist, r_wrist, 
 
 def isCorrectPushUp(elbow_angle, body_angle):
     push_up_guide = ""
-    is_push_up_performed = False
+    is_push_up_correct = False
 
     if 70 <= elbow_angle <= 100 and 160 <= body_angle <= 200:
-        is_push_up_performed = True
+        is_push_up_correct = True
+    elif body_angle < 130:
+        is_push_up_correct = None
     else:
         if elbow_angle < 70:
             push_up_guide += "Increase the height of the elbow\n"
         if elbow_angle > 100:
             push_up_guide += "Decrease the height of the elbow\n"
-        if body_angle < 160:
+        if 130 <= body_angle < 160:
             push_up_guide += "Increase the height of the body\n"
         if body_angle > 200:
             push_up_guide += "Decrease the height of the body\n"
-    return is_push_up_performed, push_up_guide
+    return is_push_up_correct, push_up_guide
 
 def posture_correction(posture, mp_drawing, mp_pose, font, colors, port):
     cap = cv2.VideoCapture(0)
@@ -222,9 +226,7 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors, port):
         good_time = 0
         bad_time = 0
     elif posture == "squat" or posture == "pushup":
-        is_done = False
-        good_repetitions = 0
-        bad_repetitions = 0
+        pass
     else:
         print("Invalid posture")
         return
@@ -300,40 +302,20 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors, port):
                         cv2.putText(frame, "Body Angle: " + str(round(body_angle, 2)),
                                 (int(l_ankle[0] * w), int(l_ankle[1] * h)), font, 0.5, colors["black"], 1, cv2.LINE_AA)
                         is_exercise_performed, guide = isCorrectPushUp(elbow_angle, body_angle)
-                        
-                    if is_exercise_performed and not is_done:
-                        is_done = True
-                    if is_exercise_performed and is_done:
-                        is_done = False
-                        bad_repetitions = 0
-                        good_repetitions += 1
-                    if not is_exercise_performed:
-                        good_repetitions = 0
-                        bad_repetitions += 1
-
-                    if int(good_repetitions % 10) > 3:
-                        send_message(arduino, "G")
-                    elif int(bad_repetitions % 10) > 3:
-                        send_message(arduino, "R")
-                    else:
-                        send_message(arduino, "V")
 
                     cv2.rectangle(frame, (0,0), (400,73), colors["light_cyan"], -1)
-                    # Rep data
-                    cv2.putText(frame, 'REPETITIONS: '+str(int(good_repetitions % 10)), (15,12), 
-                                font, 0.5, colors["black"], 1, cv2.LINE_AA)
             except:
                 pass
 
             if guide != "":
                 cv2.putText(frame, "GUIDE: ", 
-                                (15,36), 
-                                font, 0.5, colors["white"], 1, cv2.LINE_AA)
+                                (15,12), 
+                                font, 0.5, colors["black"], 1, cv2.LINE_AA)
                 for i, guide_line in enumerate(guide.split('\n')):
                     t = i+1
                     cv2.putText(frame, guide_line, 
-                        (15,36 + t*12), 
-                        font, 0.5, colors["white"], 1, cv2.LINE_AA)
+                        (15,12 + t*12), 
+                        font, 0.5, colors["black"], 1, cv2.LINE_AA)
             # Render detections
             mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
                                     mp_drawing.DrawingSpec(color=colors["pink"], thickness=2, circle_radius=2), 
