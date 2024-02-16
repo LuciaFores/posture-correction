@@ -309,12 +309,12 @@ def posture_correction(posture, mp_drawing, mp_pose, font, colors, port):
 
             if guide != "":
                 cv2.putText(frame, "GUIDE: ", 
-                                (15,12), 
+                                (15,36), 
                                 font, 0.5, colors["black"], 1, cv2.LINE_AA)
                 for i, guide_line in enumerate(guide.split('\n')):
                     t = i+1
                     cv2.putText(frame, guide_line, 
-                        (15,12 + t*12), 
+                        (15,36 + t*12), 
                         font, 0.5, colors["black"], 1, cv2.LINE_AA)
             # Render detections
             mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS,
